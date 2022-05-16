@@ -19,7 +19,11 @@
 
 > **python -m pip install -r requirements.txt**
 
+- Execute Django server:
+
+> **python manage.py runserver**
+
 ### To-do List:
 - [ ] Think a new name
-- [ ] Create the DB models
+- [x] Create the DB models (User, Project, Category, Skills and Comment models)
 - [ ] Build the API functionalities
