@@ -1,0 +1,12 @@
+{% extends "projects/layout.html" %}
+
+{% block body %}
+    <div>
+        {{ form }}
+        {% for x in form %}
+        <div>
+            {{ x }}
+        </div>
+        {% endfor %}
+    </div>
+{% endblock %}

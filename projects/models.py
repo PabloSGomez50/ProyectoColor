@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.safestring import mark_safe
 from django.utils import timezone
+from django.core.validators import MaxValueValidator, FileExtensionValidator
 
 # Project imports
 from PIL import Image as Im
@@ -38,7 +39,7 @@ class User(AbstractUser):
     instagram = models.URLField(blank=True)
     profile_img = models.ImageField(upload_to=user_dir_path, default='assets/an_user.png')
     banner = models.ImageField(upload_to=user_dir_path, blank=True)
-    curriculum = models.FileField(upload_to=user_dir_path, blank=True)
+    curriculum = models.FileField(upload_to=user_dir_path, blank=True, validators=[FileExtensionValidator(['pdf','docx'])])
     skills = models.ManyToManyField('Skill', blank=True)
 
     def __str__(self):
@@ -51,6 +52,7 @@ class User(AbstractUser):
 
 class Category(models.Model):
     name = models.CharField(max_length=64)
+    name_en = models.CharField(max_length=64, blank=True)
 
     def __str__(self):
         return self.name
@@ -61,7 +63,7 @@ def project_dir_path(instance, filename):
 class Project(models.Model):
     title = models.CharField(max_length=64)
     description = models.TextField(max_length=512, blank=True)
-    progress = models.PositiveSmallIntegerField(default=0)
+    progress = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(100)])
     pub_date = models.DateTimeField(default=timezone.now)
     image = models.ImageField(upload_to=project_dir_path, default='assets/yard.bmp')
     public = models.BooleanField(default=True)
@@ -80,11 +82,13 @@ class Project(models.Model):
             'title': self.title,
             'image': self.image.url,
             'members': [x.username for x in self.members.all()],
+            'pub_date': self.pub_date,
             'public': self.public
         }
 
 class Skill(models.Model):
     name = models.CharField(max_length=64)
+    name_en = models.CharField(max_length=64, blank=True)
     icon = models.FileField(upload_to='icon_skills')
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="skills")
 
