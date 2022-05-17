@@ -1,31 +1,23 @@
 {% extends "projects/layout.html" %}
 
 {% block body %}
-    <h1>Main page</h1>
-    <h2>The time is: </h2>
-
-    <button><a href="{% url 'projects:new_photo' %}">New picture</a></button>
-    <!-- <div class="row">
-      {% for x in user %}
-        <p>{{ x.username }}</p>
-        <p>{{ x.curriculum }}</p>
-        <iframe title="curriculum" src="media/{{ x.curriculum }}" height="200" width="300"></iframe>
-      {% endfor %}
-    </div> -->
-    <div class="row">
-        {% for x in data %}
-        <div class="col-md-4">
-            <div class="thumbnail">
-              <a href="{{ x.photo.url }}">
-                <img src="{{ x.photo.url }}" alt="Lights" style="width:100%">
-                <div class="caption">
-                  <p>{{ x.title }}</p>
-                </div>
-              </a>
-            </div>
-        </div>
-        {% empty %}
-        <p>No images available</p>
-        {% endfor %}
-    </div>
+    <h1>Eeeepica la pagina</h1>
+    {% for p in data %}
+        <p>{{ p.title }}</p>
+        <p>{{ p.owner.username }}</p>
+        {% if p.image %}
+            <img src="media/{{p.image}}" alt="Project Image">
+        {% endif %}
+    {% empty %}
+    <h2>No project register</h2>
+    {% endfor %}
+    {% for user in users %}
+        <p>{{ user.username }}</p>
+        <p>{{ user.carrer }}</p>
+        {% if user.profile_img %}
+            <img src="media/{{user.profile_img}}" alt="Profile">
+        {% endif %}
+    {% empty %}
+    <h2>No user register</h2>
+    {% endfor %}
 {% endblock %}

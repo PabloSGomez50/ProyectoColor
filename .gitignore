@@ -1,0 +1,10 @@
+# Folders
+/media
+/frontend
+
+# Data Bases
+/db.sqlite3
+
+# Test Files
+/projects/views_prueba.py
+/projects/templates/projects/index_prueba.html

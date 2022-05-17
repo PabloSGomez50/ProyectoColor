@@ -7,8 +7,8 @@ from . import views
 app_name = 'projects'
 urlpatterns = [
     # API Web Panel
-    path("", views.index, name="index"),
+    path("", views.test, name="test"),
 
     # API utilities
-    path("api", views.api, name="new_photo")
+    path("project_list", views.project_list, name="project_list")
 ]

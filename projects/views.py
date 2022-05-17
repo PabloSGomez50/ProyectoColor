@@ -3,30 +3,30 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 # Project imports
-from .models import Image, User
-from .forms import ImageUploadForm
+from .models import User, Project
 
-# Create your views here.
-def index(request):
+# from .forms import # Create your views here.
+def test(request):
     """
-    API panel template
+    Test Template view
     """
-    data = Image.objects.all()
-    user = User.objects.all()
-    context = {'data': data, 'user': user}
 
-    return render(request,"projects/index.html", context)
+    data = Project.objects.all()
+    users = User.objects.all()
+    context = {'data': data, 'users': users}
 
-def api(request):
-    """
-    Test API request
-    """
-    if request.method == "POST":
-        form = ImageUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            return redirect('projects:index')
-    else:
-        form = ImageUploadForm()
+    return render(request, 'projects/index.html', context)
 
-    return render(request, 'projects/upload.html', {'form': form})
+def project_list(request):
+    """
+    Collect all the active projects and send an JSON response
+    """
+    projects = []
+    if request.method == 'GET':
+        try:
+            projects = Project.objects.filter(public = True)
+        except Project.DoesNotExist:
+            return JsonResponse({
+                'error': f'Projects not available'
+            }, satus=400)
+    return JsonResponse([project.serialize() for project in projects], safe=False)
