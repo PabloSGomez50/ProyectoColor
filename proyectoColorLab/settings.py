@@ -54,16 +54,21 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware'
 ]
 
-# CORS_ALLOW_ALL_ORIGINS = False
-
-# CORS_ALLOWED_ORIGINS = [
-#   'https://localhost:3000',
-# ]
-
 CORS_ORIGIN_ALLOW_ALL = False
 
-CORS_ORIGIN_WHITELIST = [
-    'https://localhost:3000',
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+]
+
+CORS_ALLOW_HEADERS = [
+    'content-type',
+    'x-csrftoken'
 ]
 
 ROOT_URLCONF = 'proyectoColorLab.urls'

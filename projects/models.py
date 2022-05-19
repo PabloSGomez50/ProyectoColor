@@ -3,7 +3,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.safestring import mark_safe
 from django.utils import timezone
-from django.core.validators import MaxValueValidator, FileExtensionValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, FileExtensionValidator
 
 # Project imports
 from PIL import Image as Im
@@ -47,7 +47,9 @@ class User(AbstractUser):
 
     def serialize(self):
         return {
-            'name': self.username
+            'id': self.id,
+            'name': self.username,
+            'career': self.career
         }
 
 class Category(models.Model):
@@ -57,17 +59,24 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'name_en': self.name_en
+        }
+
 def project_dir_path(instance, filename):
     return f'projects/{instance.title}/{filename}'
     
 class Project(models.Model):
     title = models.CharField(max_length=64)
     description = models.TextField(max_length=512, blank=True)
-    progress = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(100)])
+    progress = models.IntegerField(default=0, validators=[MaxValueValidator(100),MinValueValidator(0)])
     pub_date = models.DateTimeField(default=timezone.now)
     image = models.ImageField(upload_to=project_dir_path, default='assets/yard.bmp')
     public = models.BooleanField(default=True)
-    owner = models.ForeignKey(User, on_delete=models.DO_NOTHING, related_name='owner_project')
+    owner = models.ForeignKey(User, on_delete=models.DO_NOTHING, editable=False, related_name='owner_project')
     members = models.ManyToManyField(User, related_name='my_projects')
     categories = models.ManyToManyField(Category, blank=True, related_name='projects')
 
@@ -75,15 +84,33 @@ class Project(models.Model):
         return self.title
 
     def members_list(self):
-        return [x.username for x in self.members.all()]
+        return [user for user in self.members.all() if not user.is_superuser]
 
+    def form(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'description': self.description,
+            'progress': self.progress,
+            'image': self.image,
+            'members': self.members_list(),
+            'pub_date': self.pub_date,
+            'public': self.public,
+            'categories': self.categories.first()
+        }
+        
     def serialize(self):
         return {
+            'id': self.id,
             'title': self.title,
+            'description': self.description,
+            'progress': self.progress,
             'image': self.image.url,
-            'members': [x.username for x in self.members.all()],
+            'owner': self.owner.username,
+            'members': [user.serialize() for user in self.members.all() if not user.is_superuser],
             'pub_date': self.pub_date,
-            'public': self.public
+            'public': self.public,
+            'categories': [cat.serialize() for cat in self.categories.all()]
         }
 
 class Skill(models.Model):
@@ -97,6 +124,15 @@ class Skill(models.Model):
 
     def icon_tag(self):
         return mark_safe(f'<img src="/../../media/{self.icon}" width="44" height="44" />')
+
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'name_en': self.name_en,
+            'icon': self.icon.path,
+            'category': self.category
+        }
 
 class Comment(models.Model):
     content = models.TextField(max_length=256)

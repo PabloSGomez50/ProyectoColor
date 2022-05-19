@@ -2,11 +2,18 @@
 
 {% block body %}
     <div>
-        {{ form }}
-        {% for x in form %}
-        <div>
-            {{ x }}
-        </div>
-        {% endfor %}
+        <form action="{% url 'projects:apitest' %}" method="post">
+            {% csrf_token %}
+            {{ form }}
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+    <hr>
+    <div>
+        {{ project }}
+    </div>
+    <hr>
+    <div>
+        {{ response }}
     </div>
 {% endblock %}
