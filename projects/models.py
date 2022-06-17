@@ -72,7 +72,7 @@ def project_dir_path(instance, filename):
 class Project(models.Model):
     title = models.CharField(max_length=64)
     description = models.TextField(max_length=512, blank=True)
-    progress = models.IntegerField(default=0, validators=[MaxValueValidator(100),MinValueValidator(0)])
+    progress = models.IntegerField(default=0, validators=[MaxValueValidator(100), MinValueValidator(0)])
     pub_date = models.DateTimeField(default=timezone.now)
     image = models.ImageField(upload_to=project_dir_path, default='assets/yard.bmp')
     public = models.BooleanField(default=True)

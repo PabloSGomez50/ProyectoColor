@@ -18,7 +18,7 @@ class UserAdmin(admin.ModelAdmin):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ['id', 'title', 'members_list', 'pub_date']
+    list_display = ['id', 'title', 'members_list', 'pub_date', 'owner']
     date_hierarchy = 'pub_date'
 
 @admin.register(Comment)

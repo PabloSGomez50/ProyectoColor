@@ -1,5 +1,6 @@
 # Folders
 /media
+/env
 
 # Data Bases
 /db.sqlite3

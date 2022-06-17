@@ -4,6 +4,12 @@
     <h1>Eeeepica la pagina</h1>
 
     {{ form.as_ul }}
+    <!-- <form action="{% url 'projects:test' %}" method="post">
+        {% csrf_token %}
+        <input type="text" name="username">
+        <input type="text" name="password">
+        <input type="submit" value="Submit">
+    </form> -->
 
     {% for p in data %}
         <p>{{ p.title }}</p>

@@ -26,8 +26,11 @@ with open('../secret_key.txt') as f:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+# ALLOWED_HOSTS = [
+#   'http://localhost:3000/',
+#   'http://localhost:3000',
+#   '127.0.0.1'
+# ]
 
 # Application definition
 
@@ -38,24 +41,35 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework.authtoken',
     'rest_framework',
     'corsheaders',
     'projects'
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware'
+    'django.middleware.clickjacking.XFrameOptionsMiddleware'
 ]
 
-CORS_ORIGIN_ALLOW_ALL = False
+ROOT_URLCONF = 'proyectoColorLab.urls'
 
+# Cookies Settings
+SESSION_COOKIE_SAMESITE = 'None'
+
+SESSION_COOKIE_SECURE = True
+
+CSRF_COOKIE_SAMESITE = 'None'
+
+CSRF_COOKIE_SECURE = True
+
+# CORS Configuration
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
@@ -63,15 +77,21 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',
+    'http://localhost:3000'
 ]
 
-CORS_ALLOW_HEADERS = [
-    'content-type',
-    'x-csrftoken'
-]
-
-ROOT_URLCONF = 'proyectoColorLab.urls'
+# CORS_ALLOW_HEADERS = [
+#     "accept",
+#     "accept-encoding",
+#     "authorization",
+#     "content-type",
+#     "dnt",
+#     "origin",
+#     "user-agent",
+#     "x-csrftoken",
+#     "x-requested-with",
+#     "Set-Cookie"
+# ]
 
 TEMPLATES = [
     {
