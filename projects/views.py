@@ -12,36 +12,25 @@ from django.contrib.auth.decorators import login_required
 from django.middleware.csrf import get_token
 
 # Project imports
-from rest_framework.decorators import api_view
+# from rest_framework.decorators import api_view
 from rest_framework.authtoken.models import Token
 from .models import User, Project, Category, Skill, Comment
-from .forms import ProjectForm
+from .forms import ProjectForm, UserForm
 from PIL import Image
+
 import json
+from .utils import img_valid, doc_valid, edit_model_data, edit_model_files
 
 # Create your views here.
 def test(request):
     """
     Test Template view
     """
-    # if request.method == 'POST':
-    #     print(f'Post data: \n{request.POST}\n\n')
-    #     print(f'Meta: \n{request.headers}\n\n')
-    #     print(f'Cookies:\n{request.COOKIES}')
-    #     return JsonResponse({'message': 'bien ahi'})
     data = Project.objects.all()
     users = User.objects.filter(is_superuser=False)
     context = {'data': data, 'users': users, 'form': ProjectForm()}
 
     return render(request, 'projects/index.html', context)
-
-def img_valid(image):
-    try:
-        Image.init()
-        FileExtensionValidator(allowed_extensions=[ext.lower()[1:] for ext in Image.EXTENSION])(image)
-        return True
-    except ValidationError:
-        return False
 
 # def get_csrf(request):
 #     print(request.get_host())
@@ -152,29 +141,46 @@ def edit_user(request):
     """
     Edit user profile to add some caracteristics
     """
-    print(f'POST: {(request.POST)} de tipo {type(request.POST)}')
-    print(request.FILES)
+
     if request.method == 'POST':
         token = request.POST.get('auth')
-        data = request.POST.get('data', {})
-        keys = data.keys()
-        images = request.FILES
 
         try:
             user = Token.objects.get(key=token).user
-            print(user)
-            print(request.user == user)
         except Token.DoesNotExist:
             return JsonResponse({'error': 'Token not found.'}, status=404)
 
-        print(type(data))
-        print(data.get('contant'))
-        print(f'Las imagenes son {images} y su tipo {type(images)}')
-        # try:
-        #     for s in keys:
-        #         user[s] = data[s]
-        # except IndexError:
-        #     print(f'the key {s} is not available.')
+        if user != request.user:
+            return JsonResponse({'error': 'The user is not the same that the session'}, status=401)
+
+        data = json.loads(request.POST.get('data', '{}'))
+        # keys = data.keys()
+        # user_keys = list(user.__dict__.keys())
+        files = request.FILES
+        
+        """
+        for key in files:
+            if key not in user_keys:
+                print(f'ERROR: {key} attribute is not valid.')
+                continue
+                # raise KeyError(f'ERROR: {key} attribute is not valid.')
+            if img_valid(files[key]) or doc_valid(files[key]):
+                setattr(user, key, files[key])
+                print(f'value: {files[key]}')
+            else:
+                print(f'ERROR: {files[key]} is not an Image or Doc file.')
+                # raise ValidationError(f'ERROR: {files[key]} is not an Image file.')
+        """
+        edit_model_files(user, files)
+        try:
+            edit_model_data(user, data)
+        except KeyError as e:
+            print(e.args[0])
+            return JsonResponse({'error': f'The key {e.args[1]} couldn\'t be store'}, status=400)
+        
+        print(user.serialize(), user.email, user.profile_img)
+        print(user.description)
+        # user.save()
         return JsonResponse({'message': 'Datos aceptados'})
         
 
@@ -233,6 +239,7 @@ def project_detail(request, pk):
     
     try:
         users = [user.serialize() for user in User.objects.filter(is_superuser=False)]
+        proj_users = [user.serialize() for user in project.members.all()]
     except User.DoesNotExist:
         return JsonResponse({'error': "Users not found."}, status=404)
 
@@ -248,31 +255,40 @@ def project_detail(request, pk):
             'categories': categories
         }, status=200)
 
+    # Modify the project data
     if request.method == 'POST':
-        image = request.FILES
-        data = request.POST.get('data', {})
-        keys = list(data.keys())
-        data = data.values()
-        mod = []
+        token = request.POST.get('auth')
+
+        try:
+            user = Token.objects.get(key=token).user
+        except Token.DoesNotExist:
+            return JsonResponse({'error': 'Token not found.'}, status=404)
+        
+        if user != request.user or user not in proj_users:
+            return JsonResponse({'error': 'The user is not the same that the session'}, status=401)
+
+        data = json.loads(request.POST.get('data', '{}'))
+        files = request.FILES
 
         # Check for the changes made by POST request
-        project1 = project.serialize()
-        for index, s in enumerate(data):
-            if s != project1[keys[index]] and keys[index] not in ['image', 'pub_date']:
-                project1[keys[index]] = s
-                mod.append(keys[index])
-        
-        
-        if img_valid(image):
-            project.image = image
+        try:
+            edit_model_data(project, data)
+        except KeyError as e:
+            print(e.args[0])
+            return JsonResponse({'error': f'The key {e.args[1]} couldn\'t be store'}, status=400)
 
+        edit_model_files(project, files)
         project.pub_date = timezone.now()
-        project.members.set([user['id'] for user in project1['members'] if user in users])
-        project.categories.set([cat['id'] for cat in project1['categories'] if cat in categories])
+        try:
+            project.members.set([user['id'] for user in data.get('members') if user in users])
+            project.categories.set([cat['id'] for cat in data.get('categories') if cat in categories])
+        except TypeError:
+            return JsonResponse({'error': 'Cannot set the members'})
 
-        project.save()
-        return JsonResponse({'data': project1, 'modify': mod})
+        print(project.serialize())
 
+        return JsonResponse({'success': 'everything it\'s fine.'})
+        
     return JsonResponse({'error': 'You must need to do a GET or PUT request'}, status=400)
 
 # @api_view(['POST'])
@@ -284,31 +300,45 @@ def create_project(request):
 
     if request.method != "POST":
         return JsonResponse({'error': "POST request required."}, status=400)
+    # project_model = Project.objects.model
 
-    data = request.POST.get('data', {})
+    data = json.loads(request.POST.get('data', '{}'))
     token = request.POST.get('auth')
-    images = request.FILES
-    print(f'token {token}')
+    files = request.FILES
     
     try:
         user = Token.objects.get(key=token).user
     except Token.DoesNotExist:
         return JsonResponse({'error': 'Token not found.'}, status=404)
+
+    if user != request.user:
+        return JsonResponse({'error': 'The user is not the same that the session'}, status=401)
+
     print(f'{user} del tipo {type(user)}')
     print(data)
-    print(f' Las imagenes {images} del tipo {type(images)} y su tamaño {len(images)}')
+    print(f' Las imagenes {files} del tipo {type(files)} y su tamaño {len(files)}')
 
     title = data.get('title')
+    if title is None:
+        return JsonResponse({'error': 'The project must need a title'}, status=400)
 
-    project = Project(title = title, owner = user)
-
-    if data.get('description') is not None:
-        project.description = data.get('description')
-
-    if img_valid(images):
-        project.image.save(images.name, images)
-
+    # The project must need to get asigned the user as owner and member
+    project = Project(owner = user)
     project.members.set([user])
+
+    try:
+        edit_model_data(project, data)
+    except KeyError as e:
+        print(e.args[0])
+        return JsonResponse({'error': f'The key {e.args[1]} couldn\'t be store'}, status=400)
+
+    edit_model_files(project, files)
+
+    # if data.get('description') is not None:
+    #     project.description = data.get('description')
+
+    # if img_valid(files):
+    #     project.image.save(files.name, files)
 
     if data.get('members') is not None:
         try:
@@ -324,11 +354,12 @@ def create_project(request):
         except Category.DoesNotExist:
             return JsonResponse({'error': "Category not found."}, status=404)
     
-    project.save()
+    print(project.serialize())
+    # project.save()
     
     return JsonResponse({'message': f'The project {title} was created'}, status=201)
 
-
+@csrf_exempt
 def create_comment(request, pk):
     """
     Receive and store a new comment in project pk
@@ -341,14 +372,18 @@ def create_comment(request, pk):
     except Project.DoesNotExist:
         return JsonResponse({'error': "Project not found."}, status=404)
         
+    
+    token = request.POST.get('auth')
     try:
         user = Token.objects.get(key=token).user
     except Token.DoesNotExist:
         return JsonResponse({'error': 'Token not found.'}, status=404)
 
+    if user != request.user:
+        return JsonResponse({'error': 'The user is not the same that the session'}, status=401)
+
     # payload = request.POST
-    data = request.POST.get('data', {})
-    token = request.POST.get('auth')
+    data = json.loads(request.POST.get('data', '{}'))
     content = data.get('content')
 
     if len(content) > 0 and len(content) < 256:
@@ -367,17 +402,17 @@ def create_comment(request, pk):
     return JsonResponse({'message': 'The comment couldn\'t be created'}, status=400)
 
 
-def api_test(request):
-    # project = Project.objects.get(pk=3)
+# def api_test(request):
+#     # project = Project.objects.get(pk=3)
 
-    if request.method == 'GET':
-        return JsonResponse(Skill.objects.get(pk=1).serialize())
+#     if request.method == 'GET':
+#         return JsonResponse(Skill.objects.get(pk=1).serialize())
         
-    if request.method == 'POST':
-        print(request.POST)
-        # print(json.loads(request.body))
-        print(request.FILES)
-        # print(request.body)
-        # project.image = data
-        # project.save()
-        return JsonResponse({'message': 'The object was created'}, status=200)
+#     if request.method == 'POST':
+#         print(request.POST)
+#         # print(json.loads(request.body))
+#         print(request.FILES)
+#         # print(request.body)
+#         # project.image = data
+#         # project.save()
+#         return JsonResponse({'message': 'The object was created'}, status=200)

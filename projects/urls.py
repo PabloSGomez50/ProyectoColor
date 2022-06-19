@@ -8,7 +8,7 @@ app_name = 'projects'
 urlpatterns = [
     # API Web Panel
     path("", views.test, name="test"),
-    path("apitest", views.api_test, name='apitest'),
+    # path("apitest", views.api_test, name='apitest'),
     # path("csrf", views.get_csrf, name="get_csrf"),
     path("refresh", views.session_view, name="session_view"),
 
