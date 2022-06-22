@@ -25,13 +25,16 @@ def img_valid(image):
 def edit_model_data(instance, data):
     instance_keys = list(instance.__dict__)
     keys = data.keys()
+    print(instance_keys)
 
     for key in keys:
         if key not in instance_keys:
             # print(f'ERROR: \'{key}\' attribute is not valid.')
+            # continue
             raise KeyError(f'ERROR: \'{key}\' attribute is not valid.', key)
         try:
             if data.get(key) != '':
+                print(data.get(key))
                 setattr(instance, key, data.get(key))
             else:
                 print(f'ERROR: \'{key}\' field is empty.')

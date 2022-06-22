@@ -105,10 +105,10 @@ class Project(models.Model):
             'title': self.title,
             'description': self.description,
             'progress': self.progress,
-            'image': self.image.url,
+            'image': 'http://127.0.0.1:8000' + self.image.url,
             'owner': self.owner.username,
             'members': [user.serialize() for user in self.members.all() if not user.is_superuser],
-            'pub_date': self.pub_date,
+            'pub_date': self.pub_date.ctime(), # .isoformat(' ')
             'public': self.public,
             'categories': [cat.serialize() for cat in self.categories.all()]
         }

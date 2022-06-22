@@ -217,8 +217,14 @@ def project_list(request):
         if data.has_previous():
             prev_link = f'project_list?page={data.previous_page_number()}'
 
+
+        # projectdata = data[0].serialize()
+        # time = projectdata['pub_date']
+        # print(f'Time is {type(time)} and it is {time}')
+        # print(f'Time is {type(time)} and it is {timezone.is_aware(time)}')
+        # print(f'Timezone: {timezone.get_current_timezone()}')
     return JsonResponse({
-        'data': [project.serialize() for project in data],
+        'projects': [project.serialize() for project in data],
         'count': paginator.count,
         'numpages': paginator.num_pages,
         'nextlink': next_link,
@@ -239,7 +245,7 @@ def project_detail(request, pk):
     
     try:
         users = [user.serialize() for user in User.objects.filter(is_superuser=False)]
-        proj_users = [user.serialize() for user in project.members.all()]
+        proj_users = list(project.members.all())# [user for user in project.members.all()]
     except User.DoesNotExist:
         return JsonResponse({'error': "Users not found."}, status=404)
 
@@ -264,8 +270,13 @@ def project_detail(request, pk):
         except Token.DoesNotExist:
             return JsonResponse({'error': 'Token not found.'}, status=404)
         
-        if user != request.user or user not in proj_users:
+        if user != request.user:
             return JsonResponse({'error': 'The user is not the same that the session'}, status=401)
+
+        if user not in proj_users:
+            print(user)
+            print(proj_users[0])
+            return JsonResponse({'error': 'The user isn\'t in the member list'}, status=401)
 
         data = json.loads(request.POST.get('data', '{}'))
         files = request.FILES
@@ -278,12 +289,15 @@ def project_detail(request, pk):
             return JsonResponse({'error': f'The key {e.args[1]} couldn\'t be store'}, status=400)
 
         edit_model_files(project, files)
+        
         project.pub_date = timezone.now()
         try:
-            project.members.set([user['id'] for user in data.get('members') if user in users])
-            project.categories.set([cat['id'] for cat in data.get('categories') if cat in categories])
+            users_id = [user['id'] for user in users]
+            project.members.set([user for user in data.get('members') if user in users_id])
+            # project.members.set([user['id'] for user in data.get('members') if user in users])
+            # project.categories.set([cat['id'] for cat in data.get('categories') if cat in categories])
         except TypeError:
-            return JsonResponse({'error': 'Cannot set the members'})
+            return JsonResponse({'error': 'Cannot set the members'}, status=400)
 
         print(project.serialize())
 
