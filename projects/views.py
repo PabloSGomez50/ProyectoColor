@@ -1,25 +1,25 @@
-# Django imports
+"""Django imports"""
 from django.utils import timezone
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.core.paginator import Paginator, EmptyPage
-from django.core.validators import FileExtensionValidator
-from django.core.exceptions import ValidationError
+# from django.core.validators import FileExtensionValidator
+# from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login, logout
 from django.db import IntegrityError
-from django.contrib.auth.decorators import login_required
-from django.middleware.csrf import get_token
+# from django.contrib.auth.decorators import login_required
+# from django.middleware.csrf import get_token
 
-# Project imports
+"""Project imports"""
 # from rest_framework.decorators import api_view
 from rest_framework.authtoken.models import Token
-from .models import User, Project, Category, Skill, Comment
-from .forms import ProjectForm, UserForm
-from PIL import Image
+from .models import Skill, SkillGroup, User, Project, Category, Comment #, Skill
+# from .forms import ProjectForm, UserForm
+# from PIL import Image
 
 import json
-from .utils import img_valid, doc_valid, edit_model_data, edit_model_files
+from .utils import edit_model_data, edit_model_files
 
 # Create your views here.
 def test(request):
@@ -28,7 +28,7 @@ def test(request):
     """
     data = Project.objects.all()
     users = User.objects.filter(is_superuser=False)
-    context = {'data': data, 'users': users, 'form': ProjectForm()}
+    context = {'data': data, 'users': users, 'form': {}} #ProjectForm()}}
 
     return render(request, 'projects/index.html', context)
 
@@ -122,20 +122,99 @@ def register(request):
         'token': token.key
         }, status=201)
 
+@csrf_exempt
 def get_user(request, pk):
     """
     Retrieve the profile of a determine user
     """
-    if request.method != 'GET':
-        return JsonResponse({'error': 'You must need to do a get request'}, status=400)
     try:
         user = User.objects.get(pk=pk)
     except User.DoesNotExist:
         return JsonResponse({'error': 'Users not found.'}, status=404)
 
-    projects = user.my_projects.all()
-    return JsonResponse({'user': user.serialize(), 'projects': [project.serialize() for project in projects]})
+    if request.method == 'GET':
+        projects = user.my_projects.all()
+        skill_groups = user.skill_group.all()
+        all_skills = Skill.objects.all()
+        
+        # if user == request.user:
+        #     response = {
+        #         'user': user.serialize(), 
+        #         'projects': [project.serialize() for project in projects],
+        #         'skills': [group.serialize() for group in skill_groups],
+        #         'all_skills': [skill.serialize() for skill in all_skills]
+        #     }
+        # else:
+        #     response = {
+        #         'user': user.serialize(), 
+        #         'projects': [project.serialize() for project in projects],
+        #         'skills': [group.serialize() for group in skill_groups]
+        #     }
+        return JsonResponse({
+                'user': user.serialize(), 
+                'projects': [project.serialize() for project in projects],
+                'skills': [group.serialize() for group in skill_groups],
+                'all_skills': [skill.serialize() for skill in all_skills]
+            })
+    
+    elif request.method == 'PUT':
+        if request.user != user:
+            return JsonResponse({'error': 'The session is not the same as the user you want to change.'}, status=401)
 
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if 'follow' in data.keys():
+            follow_id = data.get('follow')
+            if action == 'add':
+                user.follow_list.add(follow_id)
+
+            elif action == 'remove':
+                user.follow_list.remove(follow_id)
+
+        if 'group' in data.keys():
+            # Filter query set directly by group name
+            try:
+                group = data['group']
+                name = group.get('name')
+                if name is None or name == '':
+                    return JsonResponse({'error': 'The name value is empty.'}, status=400)
+                query = user.skill_group.filter(name=name)
+            except KeyError:
+                return JsonResponse({'error': 'The group name has not been set.'}, status=400)
+
+            if len(query) == 1:
+                group_skill = query[0]
+                for skill in group.get('skills', []):
+                    if action == 'add':
+                        group_skill.skills.add(skill)
+
+                    elif action == 'remove':
+                        group_skill.skills.remove(skill)
+                
+                return JsonResponse({
+                    'message': f'The SkillGroup {name} has been updated.',
+                    'skills': [skill.serialize() for skill in group_skill.skills.all()]
+                })
+                
+            elif len(query) == 0 and action == 'create':
+                try:
+                    group_skill = SkillGroup(user=user, name=name)
+                    group_skill.save()
+                    for skill in group.get('skills', []):
+                        group_skill.skills.add(skill)
+                except KeyError:
+                    return JsonResponse({'error': 'The name or skills has not been set.'}, status=400)
+                
+                return JsonResponse({
+                    'message': f'The SkillGroup {name} has been created.',
+                    'group': group_skill.serialize()
+                })
+            
+            else:
+                return JsonResponse({'error': 'The request does not have data values.'}, status=400)
+    else:
+        return JsonResponse({'error': 'Get-user only accepts GET and PUT requests.'}, status=400)
 @csrf_exempt
 def edit_user(request):
     """
@@ -154,33 +233,18 @@ def edit_user(request):
             return JsonResponse({'error': 'The user is not the same that the session'}, status=401)
 
         data = json.loads(request.POST.get('data', '{}'))
-        # keys = data.keys()
-        # user_keys = list(user.__dict__.keys())
         files = request.FILES
-        
-        """
-        for key in files:
-            if key not in user_keys:
-                print(f'ERROR: {key} attribute is not valid.')
-                continue
-                # raise KeyError(f'ERROR: {key} attribute is not valid.')
-            if img_valid(files[key]) or doc_valid(files[key]):
-                setattr(user, key, files[key])
-                print(f'value: {files[key]}')
-            else:
-                print(f'ERROR: {files[key]} is not an Image or Doc file.')
-                # raise ValidationError(f'ERROR: {files[key]} is not an Image file.')
-        """
+
         edit_model_files(user, files)
         try:
             edit_model_data(user, data)
         except KeyError as e:
             print(e.args[0])
             return JsonResponse({'error': f'The key {e.args[1]} couldn\'t be store'}, status=400)
-        
-        print(user.serialize(), user.email, user.profile_img)
-        print(user.description)
-        # user.save()
+
+        # print(user.serialize(), user.email, user.profile_img)
+        # print(user.description)
+        user.save()
         return JsonResponse({'message': 'Datos aceptados'})
         
 
@@ -203,7 +267,7 @@ def project_list(request):
         except (TypeError, ValueError):
             page = 1
 
-        paginator = Paginator(list(projects), 2)
+        paginator = Paginator(list(projects), 5)
         next_link = f'project_list?page={page}'
         prev_link = f'project_list?page={page}'
 
@@ -217,12 +281,6 @@ def project_list(request):
         if data.has_previous():
             prev_link = f'project_list?page={data.previous_page_number()}'
 
-
-        # projectdata = data[0].serialize()
-        # time = projectdata['pub_date']
-        # print(f'Time is {type(time)} and it is {time}')
-        # print(f'Time is {type(time)} and it is {timezone.is_aware(time)}')
-        # print(f'Timezone: {timezone.get_current_timezone()}')
     return JsonResponse({
         'projects': [project.serialize() for project in data],
         'count': paginator.count,
@@ -244,7 +302,7 @@ def project_detail(request, pk):
         return JsonResponse({'error': "Project not found."}, status=404)
     
     try:
-        users = [user.serialize() for user in User.objects.filter(is_superuser=False)]
+        users = [user.basic() for user in User.objects.filter(is_superuser=False)]
         proj_users = list(project.members.all())# [user for user in project.members.all()]
     except User.DoesNotExist:
         return JsonResponse({'error': "Users not found."}, status=404)
@@ -289,21 +347,37 @@ def project_detail(request, pk):
             return JsonResponse({'error': f'The key {e.args[1]} couldn\'t be store'}, status=400)
 
         edit_model_files(project, files)
-        
+
         project.pub_date = timezone.now()
         try:
             users_id = [user['id'] for user in users]
             project.members.set([user for user in data.get('members') if user in users_id])
+            categories_id = [cat['id'] for cat in categories]
+            project.categories.set([cat for cat in data.get('categories') if cat in categories_id])
             # project.members.set([user['id'] for user in data.get('members') if user in users])
             # project.categories.set([cat['id'] for cat in data.get('categories') if cat in categories])
         except TypeError:
             return JsonResponse({'error': 'Cannot set the members'}, status=400)
 
         print(project.serialize())
+        project.save()
 
         return JsonResponse({'success': 'everything it\'s fine.'})
         
-    return JsonResponse({'error': 'You must need to do a GET or PUT request'}, status=400)
+    if request.method == 'PUT':
+        # Put method add or remove one category from the M2M relationship
+        data = json.loads(request.body)
+        action = data.get('action')
+        cat_id = data.get('cat')
+
+        if action == 'add':
+            project.categories.add(cat_id)
+
+        elif action == 'remove':
+            project.categories.remove(cat_id)
+
+        return JsonResponse({'categories': [cat.serialize() for cat in project.categories.all()]})
+    return JsonResponse({'error': 'You must need to do a GET, POST or PUT request'}, status=400)
 
 # @api_view(['POST'])
 @csrf_exempt
@@ -409,7 +483,7 @@ def create_comment(request, pk):
 
         return JsonResponse({
             'message': f'The comment has been created in {comment.project.title}',
-            'user': user.serialize(),
+            'user': user.basic(),
             'project': project.serialize()
         })
 

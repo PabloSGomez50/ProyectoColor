@@ -1,4 +1,5 @@
 # Django imports
+from email.policy import default
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils.safestring import mark_safe
@@ -8,6 +9,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator, FileExt
 # Project imports
 from PIL import Image as Im
 
+BASE_URL = 'http://127.0.0.1:8000'
 # Create your models here.
 # Test of image integration
 """
@@ -35,21 +37,32 @@ def user_dir_path(instance, filename):
 
 class User(AbstractUser):
     description = models.TextField(max_length=512, blank=True)
-    career = models.CharField(max_length=64)
+    career = models.CharField(max_length=64, blank=True)
     instagram = models.URLField(blank=True)
     profile_img = models.ImageField(upload_to=user_dir_path, default='assets/an_user.png')
-    banner = models.ImageField(upload_to=user_dir_path, blank=True)
+    banner = models.ImageField(upload_to=user_dir_path, default='assets/bariloche.jpg')
     curriculum = models.FileField(upload_to=user_dir_path, blank=True, validators=[FileExtensionValidator(['pdf','docx'])])
-    skills = models.ManyToManyField('Skill', blank=True)
+    # skills = models.ManyToManyField('Skill', blank=True)
+    follow_list = models.ManyToManyField('self', symmetrical=False, blank=True, verbose_name='following')
 
     def __str__(self):
         return self.username
+
+    def basic(self):
+        return {
+            'id': self.id,
+            'name': self.username,
+            'image': BASE_URL + self.profile_img.url
+        }
 
     def serialize(self):
         return {
             'id': self.id,
             'name': self.username,
-            'career': self.career
+            'career': self.career,
+            'description': self.description,
+            'image': BASE_URL + self.profile_img.url,
+            'banner': BASE_URL + self.banner.url,
         }
 
 class Category(models.Model):
@@ -76,28 +89,15 @@ class Project(models.Model):
     pub_date = models.DateTimeField(default=timezone.now)
     image = models.ImageField(upload_to=project_dir_path, default='assets/yard.bmp')
     public = models.BooleanField(default=True)
-    owner = models.ForeignKey(User, on_delete=models.DO_NOTHING, editable=False, related_name='owner_project')
+    owner = models.ForeignKey(User, on_delete=models.DO_NOTHING, editable=False, related_name='owned_project')
     members = models.ManyToManyField(User, related_name='my_projects')
     categories = models.ManyToManyField(Category, blank=True, related_name='projects')
 
     def __str__(self):
         return self.title
-
+    
     def members_list(self):
         return [user for user in self.members.all() if not user.is_superuser]
-
-    def form(self):
-        return {
-            'id': self.id,
-            'title': self.title,
-            'description': self.description,
-            'progress': self.progress,
-            'image': self.image,
-            'members': self.members_list(),
-            'pub_date': self.pub_date,
-            'public': self.public,
-            'categories': self.categories.first()
-        }
         
     def serialize(self):
         return {
@@ -105,10 +105,10 @@ class Project(models.Model):
             'title': self.title,
             'description': self.description,
             'progress': self.progress,
-            'image': 'http://127.0.0.1:8000' + self.image.url,
+            'image': BASE_URL + self.image.url,
             'owner': self.owner.username,
             'members': [user.serialize() for user in self.members.all() if not user.is_superuser],
-            'pub_date': self.pub_date.ctime(), # .isoformat(' ')
+            'pub_date': self.pub_date.strftime('%a %b %y - %H:%M:%S'), #ctime(), # .isoformat(' ')
             'public': self.public,
             'categories': [cat.serialize() for cat in self.categories.all()]
         }
@@ -116,8 +116,7 @@ class Project(models.Model):
 class Skill(models.Model):
     name = models.CharField(max_length=64)
     name_en = models.CharField(max_length=64, blank=True)
-    icon = models.FileField(upload_to='icon_skills')
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name="skills")
+    icon = models.FileField(upload_to='icon_skills', validators=[FileExtensionValidator(['png','jpg','svg','bmp','jpeg','ico', 'webp'])])
 
     def __str__(self):
         return self.name
@@ -130,8 +129,22 @@ class Skill(models.Model):
             'id': self.id,
             'name': self.name,
             'name_en': self.name_en,
-            'icon': self.icon.path,
-            'category': self.category
+            'image': BASE_URL + self.icon.url,
+        }
+
+class SkillGroup(models.Model):
+    name = models.CharField(max_length=64)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="skill_group")
+    skills = models.ManyToManyField(Skill, blank=True, related_name='groups')
+
+    def __str__(self):
+        return f'{self.name} for {self.user.username}'
+
+    def serialize(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'skills': [skill.serialize() for skill in self.skills.all()]
         }
 
 class Comment(models.Model):

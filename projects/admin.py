@@ -2,7 +2,7 @@
 from django.contrib import admin
 
 # Project imports
-from .models import User, Project, Category, Skill, Comment
+from .models import User, Project, Category, Skill, SkillGroup, Comment
 
 """
 class ImageAdmin(admin.ModelAdmin):
@@ -28,6 +28,10 @@ class CommentAdmin(admin.ModelAdmin):
 @admin.register(Skill)
 class SkillAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'icon_tag']
+
+@admin.register(SkillGroup)
+class SkillGroupAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'user'] # , 'skills'
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):

@@ -17,7 +17,7 @@ def img_valid(image):
     try:
         # Image.init()
         # print([ext.lower()[1:] for ext in Image.EXTENSION])
-        FileExtensionValidator(allowed_extensions=['jpg', 'bmp', 'apng', 'jpg', 'jpeg', 'webp'])(image)
+        FileExtensionValidator(allowed_extensions=['png', 'bmp', 'apng', 'jpg', 'jpeg', 'webp'])(image)
         return True
     except ValidationError:
         return False
@@ -29,9 +29,9 @@ def edit_model_data(instance, data):
 
     for key in keys:
         if key not in instance_keys:
-            # print(f'ERROR: \'{key}\' attribute is not valid.')
-            # continue
-            raise KeyError(f'ERROR: \'{key}\' attribute is not valid.', key)
+            print(f'ERROR: \'{key}\' attribute is not valid.')
+            continue
+            # raise KeyError(f'ERROR: \'{key}\' attribute is not valid.', key)
         try:
             if data.get(key) != '':
                 print(data.get(key))
