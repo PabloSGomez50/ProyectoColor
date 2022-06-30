@@ -10,6 +10,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator, FileExt
 from PIL import Image as Im
 
 BASE_URL = 'http://127.0.0.1:8000'
+ICONS_EXT = ['png','jpg','svg','bmp','jpeg','ico', 'webp']
 # Create your models here.
 # Test of image integration
 """
@@ -42,7 +43,6 @@ class User(AbstractUser):
     profile_img = models.ImageField(upload_to=user_dir_path, default='assets/an_user.png')
     banner = models.ImageField(upload_to=user_dir_path, default='assets/bariloche.jpg')
     curriculum = models.FileField(upload_to=user_dir_path, blank=True, validators=[FileExtensionValidator(['pdf','docx'])])
-    # skills = models.ManyToManyField('Skill', blank=True)
     follow_list = models.ManyToManyField('self', symmetrical=False, blank=True, verbose_name='following')
 
     def __str__(self):
@@ -63,6 +63,33 @@ class User(AbstractUser):
             'description': self.description,
             'image': BASE_URL + self.profile_img.url,
             'banner': BASE_URL + self.banner.url,
+        }
+
+class SocialIcon(models.Model):
+    name = models.CharField(max_length=64)
+    icon = models.FileField(upload_to='social_icons', validators=[FileExtensionValidator(ICONS_EXT)])
+
+    def __str__(self):
+        return self.name
+
+    def icon_tag(self):
+        return mark_safe(f'<img src="/../../media/{self.icon}" width="44" height="44" />')
+
+class SocialMedia(models.Model):
+    url = models.URLField()
+    site = models.ForeignKey(SocialIcon, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='my_social')
+
+    def __str__(self):
+        return f'{self.site.name} of {self.user.username}'
+
+    def serialize(self):
+        return {
+            'id': self.id,
+            'user': self.user.username,
+            'name': self.site.name,
+            'url': self.url,
+            'image': BASE_URL + self.site.icon.url
         }
 
 class Category(models.Model):
@@ -116,7 +143,7 @@ class Project(models.Model):
 class Skill(models.Model):
     name = models.CharField(max_length=64)
     name_en = models.CharField(max_length=64, blank=True)
-    icon = models.FileField(upload_to='icon_skills', validators=[FileExtensionValidator(['png','jpg','svg','bmp','jpeg','ico', 'webp'])])
+    icon = models.FileField(upload_to='icon_skills', validators=[FileExtensionValidator(ICONS_EXT)])
 
     def __str__(self):
         return self.name

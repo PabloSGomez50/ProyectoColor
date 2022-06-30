@@ -14,7 +14,7 @@ from django.db import IntegrityError
 """Project imports"""
 # from rest_framework.decorators import api_view
 from rest_framework.authtoken.models import Token
-from .models import Skill, SkillGroup, User, Project, Category, Comment #, Skill
+from .models import Skill, SkillGroup, SocialIcon, SocialMedia, User, Project, Category, Comment #, Skill
 # from .forms import ProjectForm, UserForm
 # from PIL import Image
 
@@ -136,26 +136,33 @@ def get_user(request, pk):
         projects = user.my_projects.all()
         skill_groups = user.skill_group.all()
         all_skills = Skill.objects.all()
-        
-        # if user == request.user:
+        socials = user.my_social.all()
+        same = user == request.user
+        print(socials)
+        # if same:
         #     response = {
-        #         'user': user.serialize(), 
+        #         'user': user.serialize(),  
+        #         'same_user': same,
         #         'projects': [project.serialize() for project in projects],
         #         'skills': [group.serialize() for group in skill_groups],
-        #         'all_skills': [skill.serialize() for skill in all_skills]
+        #         'all_skills': [skill.serialize() for skill in all_skills],
+        #         'socials': [social.serialize() for social in socials]
         #     }
         # else:
         #     response = {
-        #         'user': user.serialize(), 
+        #         'user': user.serialize(),  
+        #         'same_user': same,
         #         'projects': [project.serialize() for project in projects],
         #         'skills': [group.serialize() for group in skill_groups]
         #     }
         return JsonResponse({
                 'user': user.serialize(), 
+                'same_user': same,
                 'projects': [project.serialize() for project in projects],
                 'skills': [group.serialize() for group in skill_groups],
-                'all_skills': [skill.serialize() for skill in all_skills]
-            })
+                'all_skills': [skill.serialize() for skill in all_skills],
+                'socials': [social.serialize() for social in socials]
+        })
     
     elif request.method == 'PUT':
         if request.user != user:
@@ -172,49 +179,111 @@ def get_user(request, pk):
             elif action == 'remove':
                 user.follow_list.remove(follow_id)
 
-        if 'group' in data.keys():
-            # Filter query set directly by group name
-            try:
-                group = data['group']
-                name = group.get('name')
-                if name is None or name == '':
-                    return JsonResponse({'error': 'The name value is empty.'}, status=400)
-                query = user.skill_group.filter(name=name)
-            except KeyError:
-                return JsonResponse({'error': 'The group name has not been set.'}, status=400)
+        elif 'social' in data.keys():
+            social = data.get('social')
+            name = social.get('name')
+            url = social.get('url')
 
-            if len(query) == 1:
-                group_skill = query[0]
-                for skill in group.get('skills', []):
-                    if action == 'add':
-                        group_skill.skills.add(skill)
+            if social is None or name is None or name == '' or url is None or url == '':
+                return JsonResponse({'error': 'Social does not have the correct data.'}, status=400)
 
-                    elif action == 'remove':
-                        group_skill.skills.remove(skill)
-                
-                return JsonResponse({
-                    'message': f'The SkillGroup {name} has been updated.',
-                    'skills': [skill.serialize() for skill in group_skill.skills.all()]
-                })
-                
-            elif len(query) == 0 and action == 'create':
-                try:
-                    group_skill = SkillGroup(user=user, name=name)
-                    group_skill.save()
-                    for skill in group.get('skills', []):
-                        group_skill.skills.add(skill)
-                except KeyError:
-                    return JsonResponse({'error': 'The name or skills has not been set.'}, status=400)
-                
-                return JsonResponse({
-                    'message': f'The SkillGroup {name} has been created.',
-                    'group': group_skill.serialize()
-                })
-            
+            # Needs to be done
+            # print(name, url)
+            social_icon = SocialIcon.objects.filter(name__iexact=name)
+            # check if it is unique
+            if len(social_icon) == 1:
+                social_icon = social_icon[0]
             else:
-                return JsonResponse({'error': 'The request does not have data values.'}, status=400)
+                return JsonResponse({'error': f'More than one social site associated with {name}'}, status=400)
+
+            SocialMedia(url=url, user=user, site=social_icon).save()
+
+            return JsonResponse({
+                'message': 'The social media link has been set.',
+                'socials': [social.serialize() for social in user.my_social.all()]
+            })
+        else:
+            return JsonResponse({'error': 'The request does not have data values.'}, status=400)
+
+    elif request.method == 'DELETE':
+        print(request.body)
+        # data = json.loads(request.body)
+        # print(data)
+        return JsonResponse({'data': 'reveice'})
     else:
+        print(request.method)
         return JsonResponse({'error': 'Get-user only accepts GET and PUT requests.'}, status=400)
+
+@csrf_exempt
+def group_skill(request, upk, gpk = None):
+    """
+    Manage the group skills of the user with primary key = pk
+    """
+    try:
+        user = User.objects.get(pk=upk)
+    except User.DoesNotExist:
+        return JsonResponse({'error': 'Users not found.'}, status=404)
+
+    if request.user != user:
+        return JsonResponse({'error': 'The session is not the same as the user you want to change.'}, status=401)
+
+    if request.method == 'DELETE':
+        try:
+            group = SkillGroup.objects.get(pk=gpk)
+        except SkillGroup.DoesNotExist:
+            return JsonResponse({'error': 'GroupSkill not found.'}, status=404)
+
+        group.delete()
+        return JsonResponse({
+            'message': f'The group {group.name} has been deleted.',
+            'skills': [group.serialize() for group in user.skill_group.all()]
+        })
+
+    data = json.loads(request.body)
+    name = data.get('name')
+
+    if name is None or name == '':
+        return JsonResponse({'error': 'Does not specify the name of the group.'}, status=401)
+    
+    if request.method == 'POST':
+        group_skill = SkillGroup(user=user, name=name)
+        group_skill.save()
+        
+        if data.get('skills') is None or data.get('skills') == []:
+            return JsonResponse({'error': 'Skills have not been set.'}, status=400)
+
+        for skill in data.get('skills', []):
+            group_skill.skills.add(skill)
+
+        return JsonResponse({
+            'message': f'The SkillGroup {name} has been created.',
+            'group': group_skill.serialize()
+        })
+
+    if request.method == 'PUT':
+        # Filter query set directly by group name
+        query = user.skill_group.filter(name=name)
+        if len(query) == 1:
+            group_skill = query[0]
+        else:
+            return JsonResponse({'error': 'the user has more than one group with the same name'}, status=400)
+
+        action = data.get('action')
+        skill = data.get('skills')
+        if action == 'add':
+            group_skill.skills.add(skill)
+
+        elif action == 'remove':
+            group_skill.skills.remove(skill)
+        
+        return JsonResponse({
+            'message': f'The SkillGroup {name} has been updated.',
+            'skills': [skill.serialize() for skill in group_skill.skills.all()]
+            })
+    
+    return JsonResponse({'error': 'GroupSkill only accepts POST, PUT and DELETE requests.'}, status=400)
+
+
 @csrf_exempt
 def edit_user(request):
     """

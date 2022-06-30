@@ -22,5 +22,7 @@ urlpatterns = [
     path("login", views.login_view, name="login"),
     path("logout", views.logout_view, name="logout"),
     path("profile/<int:pk>", views.get_user, name="get_user"),
-    path("edit_user", views.edit_user, name="edit_user")
+    path("edit_user", views.edit_user, name="edit_user"),
+    path("group_skills/<int:upk>", views.group_skill),
+    path("group_skills/<int:upk>/<int:gpk>", views.group_skill)
 ]
